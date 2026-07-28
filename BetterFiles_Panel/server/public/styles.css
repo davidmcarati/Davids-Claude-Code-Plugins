@@ -15,7 +15,7 @@
   --s-deleted: #f14c4c;
   --s-renamed: #4aa5f0;
   --s-conflict: #d18cff;
-  --s-ignored: #6a6a6a;
+  --s-ignored: #9aa0a6;
 }
 
 @media (prefers-color-scheme: light) {
@@ -36,7 +36,7 @@
     --s-deleted: #d11414;
     --s-renamed: #1076c4;
     --s-conflict: #8a2be2;
-    --s-ignored: #a0a0a0;
+    --s-ignored: #767676;
   }
 }
 

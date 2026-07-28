@@ -136,7 +136,7 @@ async function computeGit() {
 
   const porcelain = await run(
     'git',
-    ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+    ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored'],
     ROOT
   );
 
@@ -164,14 +164,18 @@ async function computeGit() {
         });
       }
 
-      let dir = abs;
-      for (;;) {
-        const parent = keyOf(path.dirname(dir));
-        if (parent === dir) break;
-        const cur = dirStatus.get(parent);
-        if (!cur || RANK[status] > RANK[cur]) dirStatus.set(parent, status);
-        if (parent === repoRoot) break;
-        dir = parent;
+      // Don't propagate "ignored" upward — an ignored file shouldn't tint its
+      // parent folders as if they held real changes.
+      if (status !== 'ignored') {
+        let dir = abs;
+        for (;;) {
+          const parent = keyOf(path.dirname(dir));
+          if (parent === dir) break;
+          const cur = dirStatus.get(parent);
+          if (!cur || RANK[status] > RANK[cur]) dirStatus.set(parent, status);
+          if (parent === repoRoot) break;
+          dir = parent;
+        }
       }
     }
   }
@@ -206,7 +210,9 @@ async function listDir(absDir, git) {
       name: ent.name,
       path: rel,
       type: isDir ? 'dir' : 'file',
-      status: isDir ? git.dirStatus.get(abs) || null : git.fileStatus.get(abs) || null,
+      status: isDir
+        ? git.dirStatus.get(abs) || git.fileStatus.get(abs) || null
+        : git.fileStatus.get(abs) || null,
       expanded: isDir ? state.expanded.has(rel) : false,
     });
   }
@@ -242,7 +248,7 @@ async function buildNode(rel, git) {
     name: rel ? path.basename(rel) : path.basename(ROOT),
     path: rel,
     type: 'dir',
-    status: git.dirStatus.get(abs) || null,
+    status: git.dirStatus.get(abs) || git.fileStatus.get(abs) || null,
     expanded: true,
     children: [],
   };
