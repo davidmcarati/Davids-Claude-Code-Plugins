@@ -312,9 +312,35 @@ function readBody(req) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const { pathname } = new URL(req.url, 'http://localhost');
+    const url = new URL(req.url, 'http://localhost');
+    const pathname = url.pathname;
 
     if (pathname === '/api/tree') return sendJson(res, 200, await buildTree());
+
+    // Stream a file so a drag-out can deliver real bytes. Confined to ROOT.
+    if (pathname === '/api/file') {
+      const abs = path.resolve(ROOT, normRel(url.searchParams.get('path') || ''));
+      if (!abs.startsWith(path.resolve(ROOT))) {
+        res.writeHead(403);
+        return res.end('Forbidden');
+      }
+      try {
+        const st = await fsp.stat(abs);
+        if (!st.isFile()) {
+          res.writeHead(404);
+          return res.end('Not a file');
+        }
+        res.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${path.basename(abs).replace(/"/g, '')}"`,
+          'Content-Length': st.size,
+        });
+        return fs.createReadStream(abs).pipe(res);
+      } catch {
+        res.writeHead(404);
+        return res.end('Not found');
+      }
+    }
 
     if (pathname === '/api/toggle' && req.method === 'POST') {
       const rel = normRel((await readBody(req)).path || '');

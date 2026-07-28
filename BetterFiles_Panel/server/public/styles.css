@@ -208,6 +208,35 @@ body {
 .chip.s-conflict  { color: var(--s-conflict);  border-color: color-mix(in srgb, var(--s-conflict) 40%, var(--border)); }
 .chip.s-ignored   { color: var(--s-ignored);   border-color: color-mix(in srgb, var(--s-ignored) 40%, var(--border)); }
 
+/* Drag + copy */
+.row[draggable="true"] { cursor: grab; }
+.row[draggable="true"]:active { cursor: grabbing; }
+.row.dragging { opacity: 0.45; }
+.row.copied { background: color-mix(in srgb, var(--focus) 35%, transparent); }
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%) translateY(8px);
+  max-width: 90%;
+  padding: 6px 12px;
+  background: var(--bg-topbar);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 10;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* Scrollbar */
 .tree::-webkit-scrollbar { width: 12px; }
 .tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
