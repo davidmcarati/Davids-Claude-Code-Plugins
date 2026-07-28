@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BetterFiles Panel</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title">
+        <span class="logo">▚</span>
+        <span id="root-name">BetterFiles</span>
+      </div>
+      <div class="meta">
+        <span id="branch" class="branch" hidden></span>
+        <button id="refresh" class="btn" title="Refresh now">⟳</button>
+        <label class="auto">
+          <input type="checkbox" id="autorefresh" checked />
+          live
+        </label>
+      </div>
+    </header>
+
+    <div id="path" class="path"></div>
+
+    <main id="tree" class="tree" aria-label="File tree"></main>
+
+    <footer class="legend" id="legend">
+      <span class="chip s-modified">modified</span>
+      <span class="chip s-added">added</span>
+      <span class="chip s-untracked">untracked</span>
+      <span class="chip s-deleted">deleted</span>
+      <span class="chip s-renamed">renamed</span>
+      <span class="chip s-conflict">conflict</span>
+      <span class="chip s-ignored">ignored</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

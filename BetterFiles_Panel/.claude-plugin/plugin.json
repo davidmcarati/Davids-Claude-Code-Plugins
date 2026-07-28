@@ -1,0 +1,11 @@
+{
+  "name": "betterfiles-panel",
+  "displayName": "BetterFiles Panel",
+  "description": "An interactive local file-tree panel that shows a selected folder, remembers what you've expanded, and colors every file and directory by its git status.",
+  "version": "0.1.0",
+  "author": {
+    "name": "David"
+  },
+  "keywords": ["files", "git", "explorer", "tree", "panel"],
+  "license": "MIT"
+}

@@ -1,0 +1,214 @@
+:root {
+  --bg: #1e1e1e;
+  --bg-elev: #252526;
+  --bg-hover: #2a2d2e;
+  --bg-topbar: #323233;
+  --fg: #cccccc;
+  --fg-dim: #8a8a8a;
+  --border: #3c3c3c;
+  --accent: #0e639c;
+  --focus: #007fd4;
+
+  --s-modified: #e2c08d;
+  --s-added: #73c991;
+  --s-untracked: #73c991;
+  --s-deleted: #f14c4c;
+  --s-renamed: #4aa5f0;
+  --s-conflict: #d18cff;
+  --s-ignored: #6a6a6a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --bg-elev: #f3f3f3;
+    --bg-hover: #e8e8e8;
+    --bg-topbar: #e7e7e7;
+    --fg: #1f1f1f;
+    --fg-dim: #6b6b6b;
+    --border: #dcdcdc;
+    --accent: #0066b8;
+    --focus: #0066b8;
+
+    --s-modified: #a67c00;
+    --s-added: #388a34;
+    --s-untracked: #388a34;
+    --s-deleted: #d11414;
+    --s-renamed: #1076c4;
+    --s-conflict: #8a2be2;
+    --s-ignored: #a0a0a0;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-topbar);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.logo { color: var(--accent); font-size: 15px; }
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+.branch::before { content: "⎇ "; }
+.branch {
+  padding: 2px 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.btn {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:active { transform: rotate(180deg); transition: transform .3s; }
+
+.auto {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.path {
+  padding: 4px 12px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+
+.tree {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 6px 0 12px;
+  user-select: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 12px 1px 0;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+}
+.row:hover { background: var(--bg-hover); }
+
+.twisty {
+  width: 14px;
+  text-align: center;
+  color: var(--fg-dim);
+  flex: 0 0 auto;
+  transition: transform .12s ease;
+}
+.twisty.open { transform: rotate(90deg); }
+.twisty.leaf { visibility: hidden; }
+
+.icon { flex: 0 0 auto; width: 16px; text-align: center; }
+
+.name { flex: 0 0 auto; }
+
+.badge {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fg-dim);
+  flex: 0 0 auto;
+}
+
+.children { display: block; }
+
+/* Status colors */
+.s-modified  .name, .name.s-modified  { color: var(--s-modified); }
+.s-added     .name, .name.s-added     { color: var(--s-added); }
+.s-untracked .name, .name.s-untracked { color: var(--s-untracked); }
+.s-deleted   .name, .name.s-deleted   { color: var(--s-deleted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--s-deleted) 60%, transparent); }
+.s-renamed   .name, .name.s-renamed   { color: var(--s-renamed); }
+.s-conflict  .name, .name.s-conflict  { color: var(--s-conflict); }
+.s-ignored   .name, .name.s-ignored   { color: var(--s-ignored); font-style: italic; }
+
+.row.dir.has-status .icon { filter: saturate(1.4); }
+
+.empty {
+  padding: 20px;
+  color: var(--fg-dim);
+  text-align: center;
+  font-style: italic;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  flex: 0 0 auto;
+}
+.chip {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.chip.s-modified  { color: var(--s-modified);  border-color: color-mix(in srgb, var(--s-modified) 40%, var(--border)); }
+.chip.s-added     { color: var(--s-added);     border-color: color-mix(in srgb, var(--s-added) 40%, var(--border)); }
+.chip.s-untracked { color: var(--s-untracked); border-color: color-mix(in srgb, var(--s-untracked) 40%, var(--border)); }
+.chip.s-deleted   { color: var(--s-deleted);   border-color: color-mix(in srgb, var(--s-deleted) 40%, var(--border)); }
+.chip.s-renamed   { color: var(--s-renamed);   border-color: color-mix(in srgb, var(--s-renamed) 40%, var(--border)); }
+.chip.s-conflict  { color: var(--s-conflict);  border-color: color-mix(in srgb, var(--s-conflict) 40%, var(--border)); }
+.chip.s-ignored   { color: var(--s-ignored);   border-color: color-mix(in srgb, var(--s-ignored) 40%, var(--border)); }
+
+/* Scrollbar */
+.tree::-webkit-scrollbar { width: 12px; }
+.tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+.tree::-webkit-scrollbar-thumb:hover { background: var(--fg-dim); }

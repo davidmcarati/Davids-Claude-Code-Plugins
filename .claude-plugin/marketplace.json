@@ -1,0 +1,13 @@
+{
+  "name": "davids-claude-code-plugins",
+  "owner": {
+    "name": "David"
+  },
+  "plugins": [
+    {
+      "name": "betterfiles-panel",
+      "source": "./BetterFiles_Panel",
+      "description": "A file-tree panel that colors files and directories by git status and remembers which folders you left open."
+    }
+  ]
+}
