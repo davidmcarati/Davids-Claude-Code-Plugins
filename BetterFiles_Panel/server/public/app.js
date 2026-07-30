@@ -72,6 +72,7 @@ function renderNode(node, depth, parent) {
   row.className = 'row ' + node.type;
   if (node.status) row.classList.add('s-' + node.status, 'has-status');
   row.style.paddingLeft = 12 + depth * INDENT + 'px';
+  row.dataset.depth = depth;
 
   const twisty = document.createElement('span');
   twisty.className = 'twisty' + (isDir ? (open ? ' open' : '') : ' leaf');
@@ -95,18 +96,25 @@ function renderNode(node, depth, parent) {
     row.appendChild(badge);
   }
 
-  if (isDir) {
-    row.draggable = true;
-    row.title = 'Click to open/close · drag into chat';
-    row.addEventListener('click', () => toggle(node.path));
-    row.addEventListener('dragstart', (e) => dragItem(e, node, true));
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
-  } else if (!node.missing) {
-    row.draggable = true;
-    row.title = 'Click to copy path · drag into chat';
-    row.addEventListener('dragstart', (e) => dragItem(e, node, false));
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
-    row.addEventListener('click', () => copyPath(absOf(node.path), row));
+  if (isDir || !node.missing) {
+    // drag lives on the handle, so a row click can't be misread as a drag
+    if (isDir) {
+      row.title = 'Click to open/close';
+      row.addEventListener('click', () => toggle(node.path, row));
+    } else {
+      row.title = 'Click to copy path';
+      row.addEventListener('click', () => copyPath(absOf(node.path), row));
+    }
+
+    const grip = document.createElement('span');
+    grip.className = 'grip';
+    grip.textContent = '⠿';
+    grip.title = 'Drag into chat';
+    grip.draggable = true;
+    grip.addEventListener('dragstart', (e) => dragItem(e, node, isDir, row));
+    grip.addEventListener('dragend', () => row.classList.remove('dragging'));
+    grip.addEventListener('click', (e) => e.stopPropagation());
+    row.insertBefore(grip, row.firstChild);
   }
 
   parent.appendChild(row);
@@ -120,15 +128,14 @@ function absOf(rel) {
   return ROOT_ABS ? ROOT_ABS.replace(/\/$/, '') + '/' + rel : rel;
 }
 
-function dragItem(e, node, isDir) {
-  e.currentTarget.classList.add('dragging');
+function dragItem(e, node, isDir, row) {
+  row.classList.add('dragging');
   const abs = absOf(node.path);
   const dt = e.dataTransfer;
   dt.effectAllowed = 'copyLink';
-  // Text drop targets (the chat box) get a usable path.
   dt.setData('text/plain', abs);
   dt.setData('text/uri-list', 'file:///' + encodeURI(abs));
-  // Only files can hand over real bytes; a directory isn't a single download.
+  // a file can also drop as a real download; a dir can't
   if (!isDir) {
     const dl = location.origin + '/api/file?path=' + encodeURIComponent(node.path);
     dt.setData('DownloadURL', `application/octet-stream:${node.name}:${dl}`);
@@ -140,8 +147,8 @@ function copyPath(text, row) {
     row.classList.add('copied');
     setTimeout(() => row.classList.remove('copied'), 500);
   }
-  // Synchronous first — keeps the click's user-activation, which some embedded
-  // browsers require for clipboard access.
+  // sync copy first: keeps the click's user gesture, which some embedded
+  // browsers demand for clipboard access
   let ok = false;
   try {
     const ta = document.createElement('textarea');
@@ -180,25 +187,58 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
+let lastRaw = '';
+let pointerDown = false;
+
 async function loadTree() {
   try {
-    render(await (await fetch('/api/tree')).json());
+    const raw = await (await fetch('/api/tree')).text();
+    if (raw === lastRaw) return; // unchanged
+    // don't rebuild mid-click; it drops the row under the cursor. next poll gets it
+    if (pointerDown) return;
+    lastRaw = raw;
+    render(JSON.parse(raw));
   } catch (err) {
     console.error(err);
   }
 }
 
-async function toggle(relPath) {
-  try {
-    await fetch('/api/toggle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: relPath }),
-    });
-  } catch (err) {
-    console.error(err);
+document.addEventListener('pointerdown', () => { pointerDown = true; });
+document.addEventListener('pointerup', () => { pointerDown = false; });
+
+const persistToggle = (relPath) =>
+  fetch('/api/toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: relPath }),
+  }).catch((err) => console.error(err));
+
+// collapse in the DOM: drop the descendant rows, flip the arrow
+function collapseRow(row) {
+  const depth = +row.dataset.depth;
+  row.querySelector('.twisty')?.classList.remove('open');
+  const icon = row.querySelector('.icon');
+  if (icon) icon.textContent = FOLDER_CLOSED;
+  let n = row.nextElementSibling;
+  while (n && +n.dataset.depth > depth) {
+    const next = n.nextElementSibling;
+    n.remove();
+    n = next;
   }
-  loadTree();
+}
+
+async function toggle(relPath, row) {
+  // collapse is instant client-side; expand needs children from the server
+  if (row && row.querySelector('.twisty.open')) {
+    collapseRow(row);
+    await persistToggle(relPath);
+    lastRaw = ''; // let the next poll reconcile
+    return;
+  }
+  const spin = row ? setTimeout(() => row.classList.add('loading'), 120) : null;
+  await persistToggle(relPath);
+  if (spin) clearTimeout(spin);
+  await loadTree();
 }
 
 let timer = null;

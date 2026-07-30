@@ -112,19 +112,19 @@ function classify(xy) {
 // How a folder picks its color when its children disagree.
 const RANK = { conflict: 6, deleted: 5, modified: 4, renamed: 3, added: 2, untracked: 1, ignored: 0 };
 
-const GIT_TTL_MS = 1500;
-let gitCache = { time: 0 };
+const GIT_TTL_MS = 3000;
+let gitCache = null;      // last git snapshot (null until the first scan lands)
+let gitFresh = 0;         // when gitCache was last refreshed
+let gitInFlight = null;   // in-progress scan, so git never runs twice at once
 
-function emptyGit(time) {
-  return { time, repoRoot: null, fileStatus: new Map(), dirStatus: new Map(), branch: null, ghostsByDir: new Map() };
+function emptyGit() {
+  return { repoRoot: null, fileStatus: new Map(), dirStatus: new Map(), branch: null, ghostsByDir: new Map() };
 }
 
-async function computeGit() {
-  const now = Date.now();
-  if (now - gitCache.time < GIT_TTL_MS && gitCache.repoRoot !== undefined) return gitCache;
-
+// slow on a big repo (seconds), so callers go through getGit() which caches it
+async function computeGitNow() {
   const top = await run('git', ['rev-parse', '--show-toplevel'], ROOT);
-  if (!top) return (gitCache = emptyGit(now));
+  if (!top) return emptyGit();
   const repoRoot = keyOf(top.trim());
 
   const branchOut = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], ROOT);
@@ -148,14 +148,13 @@ async function computeGit() {
       const xy = rec.slice(0, 2);
       const file = rec.slice(3);
       const status = classify(xy);
-      // -z renames span two fields (new path, then old); skip the old one.
+      // with -z a rename is two fields (new then old); skip the old one
       if ('RC'.includes(xy[0]) || 'RC'.includes(xy[1])) i++;
 
       const abs = keyOf(path.join(repoRoot, file));
       fileStatus.set(abs, status);
 
-      // Deleted files are gone from disk, so remember them per-parent to draw
-      // back in later (struck through).
+      // deleted files aren't on disk; stash per-parent so we can draw them back
       if (!fs.existsSync(abs)) {
         const parent = keyOf(path.dirname(abs));
         (ghostsByDir.get(parent) || ghostsByDir.set(parent, []).get(parent)).push({
@@ -164,8 +163,7 @@ async function computeGit() {
         });
       }
 
-      // Don't propagate "ignored" upward — an ignored file shouldn't tint its
-      // parent folders as if they held real changes.
+      // don't bubble "ignored" up; it shouldn't tint parent folders
       if (status !== 'ignored') {
         let dir = abs;
         for (;;) {
@@ -180,20 +178,41 @@ async function computeGit() {
     }
   }
 
-  return (gitCache = { time: now, repoRoot, fileStatus, dirStatus, branch, ghostsByDir });
+  return { repoRoot, fileStatus, dirStatus, branch, ghostsByDir };
 }
 
-// --- tree ---
+function refreshGit() {
+  if (gitInFlight) return gitInFlight;
+  gitInFlight = computeGitNow()
+    .then((result) => { gitCache = result; gitFresh = Date.now(); return result; })
+    .catch(() => gitCache || emptyGit())
+    .finally(() => { gitInFlight = null; });
+  return gitInFlight;
+}
 
-async function listDir(absDir, git) {
+// serve the cached snapshot now, refresh in the background when stale; only the
+// first call ever waits
+async function getGit() {
+  if (!gitCache) return refreshGit();
+  if (Date.now() - gitFresh > GIT_TTL_MS && !gitInFlight) refreshGit();
+  return gitCache;
+}
+
+// --- directory listing cache ---
+// same idea as getGit, for readdir: cache each dir's listing, revalidate stale
+// ones in the background, and warm the whole tree at startup (see warmCache).
+
+const DIR_TTL_MS = 5000;
+const dirCache = new Map(); // key -> { time, entries: [{name, isDir}], refreshing }
+
+async function readDirRaw(absDir) {
   let entries;
   try {
     entries = await fsp.readdir(absDir, { withFileTypes: true });
   } catch {
     return [];
   }
-
-  const nodes = [];
+  const out = [];
   for (const ent of entries) {
     if (ent.name === '.git') continue;
     let isDir = ent.isDirectory();
@@ -204,16 +223,64 @@ async function listDir(absDir, git) {
         isDir = false;
       }
     }
+    out.push({ name: ent.name, isDir });
+  }
+  return out;
+}
+
+async function entriesOf(absDir) {
+  const key = keyOf(absDir);
+  const hit = dirCache.get(key);
+  if (hit) {
+    if (Date.now() - hit.time > DIR_TTL_MS && !hit.refreshing) {
+      hit.refreshing = true;
+      readDirRaw(absDir)
+        .then((entries) => dirCache.set(key, { time: Date.now(), entries }))
+        .catch(() => { hit.refreshing = false; });
+    }
+    return hit.entries;
+  }
+  const entries = await readDirRaw(absDir);
+  dirCache.set(key, { time: Date.now(), entries });
+  return entries;
+}
+
+// pre-read the tree into the cache. skips ignored dirs (never walks node_modules)
+// and is bounded on depth/count so it can't run away on a huge repo.
+async function warmCache() {
+  const git = gitCache;
+  const budget = { entries: 0, max: 60000 };
+  const walk = async (absDir, depth) => {
+    if (depth > 15 || budget.entries > budget.max) return;
+    const entries = await entriesOf(absDir);
+    budget.entries += entries.length;
+    for (const e of entries) {
+      if (!e.isDir) continue;
+      const abs = keyOf(path.join(absDir, e.name));
+      if (git && git.fileStatus.get(abs) === 'ignored') continue;
+      await walk(abs, depth + 1);
+    }
+  };
+  try {
+    await walk(keyOf(ROOT), 0);
+  } catch {}
+}
+
+// --- tree ---
+
+async function listDir(absDir, git) {
+  const nodes = [];
+  for (const ent of await entriesOf(absDir)) {
     const abs = keyOf(path.join(absDir, ent.name));
     const rel = normRel(path.relative(ROOT, abs)) || ent.name;
     nodes.push({
       name: ent.name,
       path: rel,
-      type: isDir ? 'dir' : 'file',
-      status: isDir
+      type: ent.isDir ? 'dir' : 'file',
+      status: ent.isDir
         ? git.dirStatus.get(abs) || git.fileStatus.get(abs) || null
         : git.fileStatus.get(abs) || null,
-      expanded: isDir ? state.expanded.has(rel) : false,
+      expanded: ent.isDir ? state.expanded.has(rel) : false,
     });
   }
 
@@ -261,7 +328,7 @@ async function buildNode(rel, git) {
 }
 
 async function buildTree() {
-  const git = await computeGit();
+  const git = await getGit();
   return {
     root: keyOf(ROOT),
     rootName: path.basename(ROOT),
@@ -388,3 +455,6 @@ function listen(port, tries) {
 }
 
 listen(START_PORT, 20);
+
+// git first (so warmCache knows which dirs are ignored), then pre-read the tree
+refreshGit().then(warmCache).catch(() => {});

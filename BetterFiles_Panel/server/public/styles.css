@@ -149,9 +149,27 @@ body {
   color: var(--fg-dim);
   flex: 0 0 auto;
   transition: transform .12s ease;
+  position: relative;
 }
 .twisty.open { transform: rotate(90deg); }
 .twisty.leaf { visibility: hidden; }
+
+/* Loading spinner (shown in place of the twisty while expanding) */
+.row.loading .twisty { color: transparent; }
+.row.loading .twisty::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid var(--fg-dim);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: bf-spin 0.6s linear infinite;
+}
+@keyframes bf-spin { to { transform: rotate(360deg); } }
 
 .icon { flex: 0 0 auto; width: 16px; text-align: center; }
 
@@ -209,9 +227,22 @@ body {
 .chip.s-ignored   { color: var(--s-ignored);   border-color: color-mix(in srgb, var(--s-ignored) 40%, var(--border)); }
 
 /* Drag + copy */
-.row[draggable="true"] { cursor: grab; }
-.row[draggable="true"]:active { cursor: grabbing; }
 .row.dragging { opacity: 0.45; }
+
+.grip {
+  padding: 0 2px;
+  margin-right: 2px;
+  color: var(--fg-dim);
+  cursor: grab;
+  opacity: 0.4;
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.row:hover .grip { opacity: 0.8; }
+.grip:hover { opacity: 1; color: var(--fg); }
+.grip:active { cursor: grabbing; }
 .row.copied { background: color-mix(in srgb, var(--focus) 35%, transparent); }
 
 #toast {
