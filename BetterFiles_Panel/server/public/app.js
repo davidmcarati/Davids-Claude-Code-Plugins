@@ -97,24 +97,31 @@ function renderNode(node, depth, parent) {
   }
 
   if (isDir || !node.missing) {
-    // drag lives on the handle, so a row click can't be misread as a drag
-    if (isDir) {
-      row.title = 'Click to open/close';
-      row.addEventListener('click', () => toggle(node.path, row));
-    } else {
-      row.title = 'Click to copy path';
-      row.addEventListener('click', () => copyPath(absOf(node.path), row));
-    }
+    row.draggable = true;
+    row.title = isDir
+      ? 'Click to open/close · drag into chat'
+      : 'Click to copy path · drag into chat';
+    const activate = isDir
+      ? () => toggle(node.path, row)
+      : () => copyPath(absOf(node.path), row);
 
-    const grip = document.createElement('span');
-    grip.className = 'grip';
-    grip.textContent = '⠿';
-    grip.title = 'Drag into chat';
-    grip.draggable = true;
-    grip.addEventListener('dragstart', (e) => dragItem(e, node, isDir, row));
-    grip.addEventListener('dragend', () => row.classList.remove('dragging'));
-    grip.addEventListener('click', (e) => e.stopPropagation());
-    row.insertBefore(grip, row.firstChild);
+    // The browser tells us which gesture it was: a real drag fires dragstart, a
+    // plain click doesn't. So it's a click only if no drag started and the
+    // pointer didn't move.
+    let sx = 0, sy = 0, dragged = false;
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button === 0) { sx = e.clientX; sy = e.clientY; dragged = false; }
+    });
+    row.addEventListener('dragstart', (e) => {
+      dragged = true;
+      dragItem(e, node, isDir, row);
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('pointerup', (e) => {
+      if (e.button !== 0 || dragged) return;
+      if (Math.abs(e.clientX - sx) > 6 || Math.abs(e.clientY - sy) > 6) return;
+      activate();
+    });
   }
 
   parent.appendChild(row);
